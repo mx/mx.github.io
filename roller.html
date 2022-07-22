@@ -1,0 +1,171 @@
+<html>
+  <head>
+    <title>Dice Roller</title>
+
+    <style>
+     input[type=button] {
+         margin-bottom: 4px;
+         margin-top: 4px;
+         padding: 4px 16px;
+     }
+
+     p.example {
+         font-weight: bold;
+         padding-left: 3em;
+     }
+    </style>
+
+    <script type="text/javascript">
+     const innerParser = /(\d+)d(\d+)(?:([DxX])(\d+))?/;
+     const outerParser = /^((?<times>\d+)x)?(?<subexps>\d+d\d+(?:[DxX]\d+)?\+)*(?<num>\d+)d(?<sides>\d+)(?:(?<opts>[DxX])(?<optnum>\d+))?(?<adder>[+\-]\d+)?$/;
+
+     function convertAdder(adder) {
+         if (!adder) {
+             return `${adder}`;
+         } else if (adder > 0) {
+             return `+${adder}`;
+         } else {
+             return `${adder}`;
+         }
+     }
+
+     function die(sides) {
+         return Math.floor(Math.random() * sides) + 1;
+     }
+
+     function execute(numDice, sides, option, optionNum) {
+         const results = [];
+         for (let j = 0; j < numDice; j++) {
+             results[j] = die(sides);
+         }
+         if (option == 'D') {
+             // Drop lowest.
+             if (optionNum >= numDice) {
+                 return [];
+             }
+             // Iterate multiple times, it doesn't take that long and I'd rather
+             // do that then sort and permanently change the order.
+             for (let j = 0; j < optionNum; j++) {
+                 const smallest = Math.min(...results);
+                 results.splice(results.indexOf(smallest), 1);
+             }
+         } else if (option == 'x') {
+             // Explode, once only.
+             for (let j = results.length - 1; j >= 0; j--) {
+                 if (results[j] >= optionNum) {
+                     results.splice(j+1, 0, die(sides));
+                 }
+             }
+         } else if (option == 'X') {
+             // Explode, as many times as necessary.
+             // Maximum of 5 explosions, to prevent browsers from crashing.
+             console.log('Original: ' + results);
+             for (let j = results.length - 1; j >= 0; j--) {
+                 if (results[j] >= optionNum) {
+                     let pos = j+1;
+                     let newDie = null;
+                     do {
+                         newDie = die(sides);
+                         results.splice(pos, 0, newDie);
+                         pos++;
+                     } while (newDie >= optionNum && pos <= j+5);
+                 }
+             }
+         }
+         return results;
+     }
+
+     // A little silly but + isn't a function that can be reduced.
+     function plus(x, y) { return x+y; }
+
+     function clearRolls() {
+         document.getElementById("rolloutput").value = "";
+     }
+
+     function roll() {
+         const input = document.getElementById("rollinput").value;
+         const outputField = document.getElementById("rolloutput");
+         const match = outerParser.exec(input);
+         console.log(match);
+         if (match === null) {
+             outputField.value += 'Invalid format\n';
+             return;
+         }
+
+         const times = parseInt(match.groups.times) || 1;
+
+         for (let i = 1; i <= times; i++) {
+             const subexps = match.groups.subexps?.split('+').slice(0, -1).map(
+                 subexp => {
+                     const pieces = innerParser.exec(subexp);
+                     console.log(pieces);
+                     return execute(pieces[1], pieces[2], pieces[3], pieces[4]);
+             }) || [];
+             const num = parseInt(match.groups.num);
+             const sides = parseInt(match.groups.sides);
+             let adder = match.groups.adder;
+             if (adder && adder.charAt(0) === '+') {
+                 adder = parseInt(adder.substring(1));
+             } else {
+                 adder = parseInt(adder) || 0;
+             }
+             const results = execute(num, sides, match.groups.opts, match.groups.optnum);
+
+             // Now dump the output.
+             let append = '';
+             let total = adder;
+             if (times > 1) {
+                 append += `  ${i}: `;
+             }
+             for (const subexp of subexps) {
+                 append += `[${subexp}]+`;
+                 total += subexp.reduce(plus);
+             }
+             append += `[${results}]`;
+             if (adder) {
+                 append += ` ${convertAdder(adder)}`;
+             }
+             total += results.reduce(plus);
+             append += ` -> ${total}\n`;
+             outputField.value += append;
+         }
+
+         outputField.scrollTop = outputField.scrollHeight;
+     }
+    </script>
+  </head>
+
+  <body>
+    <div style="float: left; width: 50%">
+      <label for="rollinput">Input:</label>
+      <br>
+      <input type="text" name="rollinput" id="rollinput"
+             autocomplete="off"
+             style="width: 75%;">
+      <br>
+      <input type="button" value="Roll" onclick="javascript:roll();">
+      <input type="button" value="Clear" onclick="javascript:clearRolls();">
+      <br>
+      <label for="rolloutput">Output:</label>
+      <br>
+      <textarea readonly="true" name="rolloutput" id="rolloutput"
+                style="width: 75%; height: 50%;"></textarea>
+    </div>
+    <div style="float: left; width: 50%">
+      <h2>Instructions</h2>
+      <p>Put a roll string in the input. Such a string looks like, minus the [] brackets:</p>
+      <p class="example">#x#d#+#d#+#</p>
+      <p>The first number, including the "x", is optional. It states how many times to run the roll:</p>
+      <p class="example">5x3d6 => Roll 3d6, 5 separate times.</p>
+      <p>You can include as many different dice expressions (#d#) as you want, summed together:</p>
+      <p class="example">3d6+1d8 => Roll 3d6 and 1d8, add it together.</p>
+      <p>You can optionally include a final adder or subtractor:</p>
+      <p class="example">1d8+1d4-3 => Roll 1d8 and 1d4, add them together, and subtract 3.</p>
+      <p>Each dice expression (#d#) can include an optional specifier to DROP the lowest number of dice by specifying D, or EXPLODE on a certain value or higher by specifying x or X:</p>
+      <p class="example">6x4d6D1 => Roll 4d6 and drop the lowest die, six times.</p>
+      <p class="example">6d6x6 => Roll 6d6, exploding on sixes.</p>
+      <p class="example">6d6X5 => Roll 6d6, exploding on fives, and the exploded dice can also explode (up to 5 times).</p>
+      <p>Future plans: counting "hit" numbers? (Helpful for Shadowrun.)</p>
+    </div>
+  </body>
+</html>
