@@ -59,7 +59,6 @@
          } else if (option == 'X') {
              // Explode, as many times as necessary.
              // Maximum of 5 explosions, to prevent browsers from crashing.
-             console.log('Original: ' + results);
              for (let j = results.length - 1; j >= 0; j--) {
                  if (results[j] >= optionNum) {
                      let pos = j+1;
@@ -86,7 +85,6 @@
          const input = document.getElementById("rollinput").value;
          const outputField = document.getElementById("rolloutput");
          const match = outerParser.exec(input);
-         console.log(match);
          if (match === null) {
              outputField.value += 'Invalid format\n';
              return;
@@ -98,7 +96,6 @@
              const subexps = match.groups.subexps?.split('+').slice(0, -1).map(
                  subexp => {
                      const pieces = innerParser.exec(subexp);
-                     console.log(pieces);
                      return execute(pieces[1], pieces[2], pieces[3], pieces[4]);
              }) || [];
              const num = parseInt(match.groups.num);
