@@ -16,8 +16,8 @@
     </style>
 
     <script type="text/javascript">
-     const innerParser = /(\d+)d(\d+)(?:([DxX])(\d+))?/;
-     const outerParser = /^((?<times>\d+)x)?(?<subexps>\d+d\d+(?:[DxX]\d+)?\+)*(?<num>\d+)d(?<sides>\d+)(?:(?<opts>[DxX])(?<optnum>\d+))?(?<adder>[+\-]\d+)?$/;
+     const innerParser = /(\d+)d(\d+)(?:([RrEe])(\d+))?/;
+     const outerParser = /^((?<times>\d+)x)?(?<subexps>\d+d\d+(?:[RrEe]\d+)?\+)*(?<num>\d+)d(?<sides>\d+)(?:(?<opts>[RrEe])(?<optnum>\d+))?(?<adder>[+\-]\d+)?$/;
 
      function convertAdder(adder) {
          if (!adder) {
@@ -38,7 +38,7 @@
          for (let j = 0; j < numDice; j++) {
              results[j] = die(sides);
          }
-         if (option == 'D') {
+         if (option == 'r') {
              // Drop lowest.
              if (optionNum >= numDice) {
                  return [];
@@ -49,14 +49,25 @@
                  const smallest = Math.min(...results);
                  results.splice(results.indexOf(smallest), 1);
              }
-         } else if (option == 'x') {
+         } else if (option == 'R') {
+             // Drop highest.
+             if (optionNum >= numDice) {
+                 return [];
+             }
+             // Iterate multiple times, it doesn't take that long and I'd rather
+             // do that then sort and permanently change the order.
+             for (let j = 0; j < optionNum; j++) {
+                 const largest = Math.max(...results);
+                 results.splice(results.indexOf(largest), 1);
+             }
+         } else if (option == 'e') {
              // Explode, once only.
              for (let j = results.length - 1; j >= 0; j--) {
                  if (results[j] >= optionNum) {
                      results.splice(j+1, 0, die(sides));
                  }
              }
-         } else if (option == 'X') {
+         } else if (option == 'E') {
              // Explode, as many times as necessary.
              // Maximum of 5 explosions, to prevent browsers from crashing.
              for (let j = results.length - 1; j >= 0; j--) {
@@ -158,10 +169,11 @@
       <p class="example">3d6+1d8 => Roll 3d6 and 1d8, add it together.</p>
       <p>You can optionally include a final adder or subtractor:</p>
       <p class="example">1d8+1d4-3 => Roll 1d8 and 1d4, add them together, and subtract 3.</p>
-      <p>Each dice expression (#d#) can include an optional specifier to DROP the lowest number of dice by specifying D, or EXPLODE on a certain value or higher by specifying x or X:</p>
-      <p class="example">6x4d6D1 => Roll 4d6 and drop the lowest die, six times.</p>
-      <p class="example">6d6x6 => Roll 6d6, exploding on sixes.</p>
-      <p class="example">6d6X5 => Roll 6d6, exploding on fives, and the exploded dice can also explode (up to 5 times).</p>
+      <p>Each dice expression (#d#) can include an optional specifier afterwards. You can DROP the lowest value of dice by specifying r, the highest value of dice by specifying R or EXPLODE on a certain value or higher by specifying e or E:</p>
+      <p class="example">6x4d6r1 => Roll 4d6 and drop the lowest die, six times (basic stats).</p>
+      <p class="example">2d20R1 => Roll 2d20, drop the highest die (basic disadvantage).</p>
+      <p class="example">6d6e6 => Roll 6d6, exploding on sixes.</p>
+      <p class="example">6d6e5 => Roll 6d6, exploding on fives, and the exploded dice can also explode (up to 5 times, hard limit).</p>
       <p>Future plans: counting "hit" numbers? (Helpful for Shadowrun.)</p>
     </div>
   </body>
