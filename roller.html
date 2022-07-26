@@ -108,6 +108,15 @@
          return results;
      }
 
+     // Listens for keydown events on the text line, to sniff for ENTER. Then
+     // acts as if you pressed the "Roll" button. Has an implicit "event"
+     // param when called.
+     function inputKeyDown() {
+         if (event.key === 'Enter') {
+             roll();
+         }
+     }
+
      function roll() {
          const collated = document.getElementById('collate').checked;
          const input = document.getElementById("rollinput").value;
@@ -173,6 +182,7 @@
       <label for="rollinput">Input:</label>
       <br>
       <input type="text" name="rollinput" id="rollinput"
+             onkeydown="javascript:inputKeyDown();"
              autocomplete="off"
              style="width: 75%;">
       <br>
