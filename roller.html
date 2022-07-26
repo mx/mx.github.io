@@ -3,6 +3,11 @@
     <title>Dice Roller</title>
 
     <style>
+     div.pane {
+         float: left;
+         width: 50%;
+     }
+
      input[type=button] {
          margin-bottom: 4px;
          margin-top: 4px;
@@ -164,7 +169,7 @@
   </head>
 
   <body>
-    <div style="float: left; width: 50%">
+    <div class="pane">
       <label for="rollinput">Input:</label>
       <br>
       <input type="text" name="rollinput" id="rollinput"
@@ -182,7 +187,7 @@
       <textarea readonly="true" name="rolloutput" id="rolloutput"
                 style="width: 75%; height: 50%;"></textarea>
     </div>
-    <div style="float: left; width: 50%">
+    <div class="pane">
       <h2>Instructions</h2>
       <p>Put a roll string in the input. Such a string looks like, minus the [] brackets:</p>
       <p class="example">#x#d#+#d#+#</p>
