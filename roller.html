@@ -98,6 +98,11 @@
      }
 
      function collate(arr) {
+         // Only do anything special if we're checked.
+         if (!document.getElementById('collate').checked) {
+             return arr;
+         }
+
          const results = [];
          arr.sort();
          for (let i = 0; i < arr.length; i++) {
@@ -118,7 +123,6 @@
      }
 
      function roll() {
-         const collated = document.getElementById('collate').checked;
          const input = document.getElementById("rollinput").value;
          const outputField = document.getElementById("rolloutput");
          const match = outerParser.exec(input);
@@ -152,18 +156,10 @@
                  append += `  ${i}: `;
              }
              for (const subexp of subexps) {
-                 if (collated) {
-                     append += `[${collate(subexp)}]`;
-                 } else {
-                     append += `[${subexp}]+`;
-                     total += subexp.reduce(plus);
-                 }
+                 append += `[${collate(subexp)}] + `;
+                 total += subexp.reduce(plus);
              }
-             if (collated) {
-                 append += `[${collate(results)}]`;
-             } else {
-                 append += `[${results}]`;
-             }
+             append += `[${collate(results)}]`;
              if (adder) {
                  append += ` ${convertAdder(adder)}`;
              }
