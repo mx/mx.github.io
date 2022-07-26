@@ -92,7 +92,19 @@
          document.getElementById("rolloutput").value = "";
      }
 
+     function collate(arr) {
+         const results = [];
+         arr.sort();
+         for (let i = 0; i < arr.length; i++) {
+             const lastPos = arr.lastIndexOf(arr[i]);
+             results.push(`${1 + (lastPos - i)}x${arr[i]}`);
+             i = lastPos;
+         }
+         return results;
+     }
+
      function roll() {
+         const collated = document.getElementById('collate').checked;
          const input = document.getElementById("rollinput").value;
          const outputField = document.getElementById("rolloutput");
          const match = outerParser.exec(input);
@@ -126,10 +138,18 @@
                  append += `  ${i}: `;
              }
              for (const subexp of subexps) {
-                 append += `[${subexp}]+`;
-                 total += subexp.reduce(plus);
+                 if (collated) {
+                     append += `[${collate(subexp)}]`;
+                 } else {
+                     append += `[${subexp}]+`;
+                     total += subexp.reduce(plus);
+                 }
              }
-             append += `[${results}]`;
+             if (collated) {
+                 append += `[${collate(results)}]`;
+             } else {
+                 append += `[${results}]`;
+             }
              if (adder) {
                  append += ` ${convertAdder(adder)}`;
              }
@@ -153,6 +173,9 @@
       <br>
       <input type="button" value="Roll" onclick="javascript:roll();">
       <input type="button" value="Clear" onclick="javascript:clearRolls();">
+      <input type="checkbox" name="collate" id="collate"
+             style="margin-left: 2em;">
+      <label for="collate">Collate</label>
       <br>
       <label for="rolloutput">Output:</label>
       <br>
@@ -174,7 +197,8 @@
       <p class="example">2d20R1 => Roll 2d20, drop the highest die (basic disadvantage).</p>
       <p class="example">6d6e6 => Roll 6d6, exploding on sixes.</p>
       <p class="example">6d6e5 => Roll 6d6, exploding on fives, and the exploded dice can also explode (up to 5 times, hard limit).</p>
-      <p>Future plans: counting "hit" numbers? (Helpful for Shadowrun.)</p>
+      <p>Check the "collate" box to have the die results sorted and counted by the number of times the face appeared:</p>
+      <p class="example">6d6 (collated) => [1x1,2x3,3x6] -> 25</p>
     </div>
   </body>
 </html>
