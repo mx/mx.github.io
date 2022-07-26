@@ -22,7 +22,7 @@
 
     <script type="text/javascript">
      const innerParser = /(\d+)d(\d+)(?:([RrEe])(\d+))?/;
-     const outerParser = /^((?<times>\d+)x)?(?<subexps>\d+d\d+(?:[RrEe]\d+)?\+)*(?<num>\d+)d(?<sides>\d+)(?:(?<opts>[RrEe])(?<optnum>\d+))?(?<adder>[+\-]\d+)?$/;
+     const outerParser = /^(?<name>.+\s)?((?<times>\d+)x)?(?<subexps>\d+d\d+(?:[RrEe]\d+)?\+)*(?<num>\d+)d(?<sides>\d+)(?:(?<opts>[RrEe])(?<optnum>\d+))?(?<adder>[+\-]\d+)?$/;
 
      function convertAdder(adder) {
          if (!adder) {
@@ -131,8 +131,15 @@
              return;
          }
 
+         const name = match.groups.name;
          const times = parseInt(match.groups.times) || 1;
 
+         if (name) {
+             outputField.value += name;
+             if (times > 1) {
+                 outputField.value += '\n';
+             }
+         }
          for (let i = 1; i <= times; i++) {
              const subexps = match.groups.subexps?.split('+').slice(0, -1).map(
                  subexp => {
@@ -153,7 +160,7 @@
              let append = '';
              let total = adder;
              if (times > 1) {
-                 append += `  ${i}: `;
+                 append = `  ${i}: `;
              }
              for (const subexp of subexps) {
                  append += `[${collate(subexp)}] + `;
@@ -196,11 +203,11 @@
     <div class="pane">
       <h2>Instructions</h2>
       <p>Put a roll string in the input. Such a string looks like, minus the [] brackets:</p>
-      <p class="example">#x#d#+#d#+#</p>
-      <p>The first number, including the "x", is optional. It states how many times to run the roll:</p>
+      <p class="example">name #x#d#+#d#+#</p>
+      <p>The name and first number, including the "x", is optional. It states how many times to run the roll:</p>
       <p class="example">5x3d6 => Roll 3d6, 5 separate times.</p>
       <p>You can include as many different dice expressions (#d#) as you want, summed together:</p>
-      <p class="example">3d6+1d8 => Roll 3d6 and 1d8, add it together.</p>
+      <p class="example">damage 3d6+1d8 => Roll 3d6 and 1d8, add it together. Labeled as "damage" in the output.</p>
       <p>You can optionally include a final adder or subtractor:</p>
       <p class="example">1d8+1d4-3 => Roll 1d8 and 1d4, add them together, and subtract 3.</p>
       <p>Each dice expression (#d#) can include an optional specifier afterwards. You can DROP the lowest value of dice by specifying r, the highest value of dice by specifying R or EXPLODE on a certain value or higher by specifying e or E:</p>
