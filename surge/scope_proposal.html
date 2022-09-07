@@ -1,0 +1,39 @@
+<html>
+  <head>
+    <title>Oscilloscope Proposal for Surge</title>
+  </head>
+
+  <body>
+    <h2>Overall Goal</h2>
+    <p><a href="https://github.com/surge-synthesizer/surge/issues/1970">Issue #1970</a> requests an oscilloscope. Personally I need one as well for my own use case, so I went about adding one. In the process, however, I found that there might be some generic use case for concepts like "tapping the audio chain at a certain point", or "subscribe to the output". In other words, some future feature might want to do the same thing. So I wanted to propose some abstractions and design that could satisfy these use cases.</p>
+
+    <h2>Initial Steps</h2>
+    <p>Before anything else and before we overengineer anything, let's just get a basic scope done. So that's the following:</p>
+    <ul>
+      <li>Overlay component that can be opened from the main menu to turn on the scope.</li>
+      <li>Basic ring buffer plopped into SurgeSynthesizer.h.</li>
+      <li>SurgeSynthesizer::process, will push to the ring buffer if the scope is subscribed to it.</li>
+      <li>Overlay component performs FFT on ring buffer blocks (probably on a separate thread from the UI update), displays results on UI update. Or just displays the waveform (based on user's desire).</li>
+    </ul>
+    <p>Simple enough concept. It's probably worth abstracting that second step into a generic SPSC RingBuffer class with a proper API (better than just leaving a bunch of atomics and arrays lying around). That's all it will take to get the first version of the scope done.</p>
+
+    <h2>Future Work: Generalized SPMC PubSub</h2>
+    <p>I don't think I'm the first, and I probably won't be the last, person who wants to pull data from the audio pipeline. So after the above is all done, it's worth considering augmenting the ring buffer infrastructure to support multiple consumers. We could handle this in a few different ways, and possibly all of them:</p>
+    <ol>
+      <li>Just keep separate markers for each reader, and give a reader a token when registering to remember who is who.</li>
+      <li>Have a process() method that, when calls, executes a callback on all the readers. Obviously the process() would itself need to be called outside the realtime audio thread.</li>
+      <li>Have #2, but let the reader say if they want to be notified or want to do the pulling themselves.</li>
+    </ol>
+
+    <p>Anyway, then we can move the data at the end of the audio pipeline into this structure and anyone who cares can subscribe to it. We could probably move the channel loudness markers to read from this too if we wanted to clean that up.</p>
+
+    <h2>Future work: Attach Anywhere</h2>
+    <p>This one's a bit more complicated. There's no reason we should limit ourselves to just pulling data from the end of the audio pipeline.</p>
+
+    <p>SurgeSynthesizer::process is a pretty rigid function. It's simple enough but it really just routes blocks from one thing to the next to the next. There's no concept of hooking into things. To make this idea work with minimal changes, we'd basically be adding a ring buffer in between every pipeline stage, and filling it as we move. (Obviously, the filling would be a no-op if there were no subscribers.) That...works, but it's not very elegant and not all that extensible either.</p>
+
+    <p>Going beyond this would require a serious refactoring of SurgeSynthesizer::process() to make the whole thing a little more modular. You could imagine an abstract class representing a pipeline unit, and said class would hold the data it's producing. Or something like that. Anyway, this is way beyond the scope of a basic oscilloscope. I just bring this up to mention possible future ideas for hooking in anywhere you want. This is the sort of thing you'd want to do to help implement <a href="https://github.com/surge-synthesizer/surge/issues/4355">issue #4355</a>. It would also pave the way for turning Surge into a more modular synthesizer (which is also, basically, the path that the aforementioned issue is going down).</p>
+
+    <p>I can try to write up a design for that sort of thing, but there's a couple of dangers there. First of all I'm a new contributor so I already feel like I'm stepping on toes with this doc alone. Second of all I think there's several pitfalls around real-time processing that I'm simply not aware of. There's a lot of subtleties around real-time work which makes this difficult to get right.</p>
+  </body>
+</html>
