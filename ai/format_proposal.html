@@ -1,0 +1,92 @@
+<html>
+  <head>
+    <title>Single-File Format Proposal</title>
+  </head>
+
+  <body>
+    <h2>Overall Goal</h2>
+    <p>We currently have a proliferation of standards for distributing models, grown organically. This worked quite well in the days of small models with small text encoders (SD 1.5, SDXL). As both diffusion models and their accompanying text encoders have grown larger, however, we've started to hit problems. We have users that want to train individual pieces of the model, such as only the DiT of the SD3 model. This then leaves an open question of how to distribute the resulting trained piece. A single file that any UI can load is the most convenient form of such distribution. However, as of this moment, single files must include any corresponding text encoders (reaching 10+ gigabytes) for proper loading, even if they are untouched as part of the fine-tuning process. This is not a good long-term prospect.</p>
+
+    <p>The format that competes with single-file distribution is the Diffusers format. This represents a directory structure with the individual pieces of the model as different files. Splitting out the model like this is advantageous, but Diffusers format is not a panacea. You still have to distribute all the pieces of the model, even if you haven't modified them from their original forms. Furthermore, it is <i>not a single file</i>! It could be zipped up, but this is explicitly not part of the standard.</p>
+
+    <p>Thus, this document proposes a new standard for single-file model distribution going forward. None of the pieces here hold any technical challenge. The only difficulty is organizational: getting all inference frontends and trainers to agree on this format.</p>
+
+    <h2>Non-Goals</h2>
+    <p>This document does not address the standardization of key/layer naming. It also does not address how to actually load the individual pieces. It merely states if the pieces are <i>present</i> in the file, or <i>absent</i> with a pointer for how to find them. Providing a canonical naming scheme or on-disk format for the individual pieces is outside the scope of this standard.</p>
+
+    <h2>The Format: Full Models</h2>
+    <p>A model will be distributed as a single .safetensors file. It will have, contained in the metadata section of the file, the following JSON key:</p>
+    <pre>
+      "model_information": {
+        "schema_version": "1",
+        "model_type": "MODEL_TYPE_STRING",  // See below section.
+        "model_components": {
+          // This section varies based on the model type. This is an example of SDXL.
+          "clip-l": "included",
+          "clip-g": "&lt;sha256 hash&gt;",
+          "unet": "included",
+          "vae": "&lt;sha256 hash&gt;",
+          "tokenizer": "&lt;sha256 hash&gt;"
+        },
+        "prediction_type": "PREDICTION_TYPE_STRING"   // See below section.
+        // If there are any additional model parameters that would be important
+        // to distribute because they are not standardized amongst the
+        // model_type, they should be included here.
+      }
+    </pre>
+
+    <h3>Key Definitions</h3>
+
+    <h4>MODEL_TYPE_STRING</h4>
+    <p>A name that uniquely identifies the base type of the model. Current set aside names:</p>
+    <ul>
+      <li>SD1.5</li>
+      <li>SD2</li>
+      <li>SDXL</li>
+      <li>SD3</li>
+      <li>FLUX</li>
+      <li>PIXART ALPHA</li>
+      <li>PIXART SIGMA</li>
+      <li>HUNYUAN DIT</li>
+    </ul>
+
+    <h4>model_components</h4>
+    <p>Models consist of many different components, depending on the architecture. Each component is given a canonical name, defined below in this document, and a field indicating its presence. If it is present in the file, the field will say <b>"included"</b>. If the field is not present, a hexidecimal sha256 hash representing the missing component is included. This sha256 hash <b>should</b> be equivalent to the sha256 of the file containing this component.</p>
+
+    <h4>PREDICTION_TYPE_STRING</h4>
+    <p>Some models, like Stable Diffusion models, might have variable prediction targets. If the file represents such a model, it should include this information. Possible values include, but are not limited to:</p>
+    <ul>
+      <li>eps</li>
+      <li>v</li>
+      <li>x0</li>
+    </ul>
+    <p>This value is extremely model- and implementation-dependent, and it is not expected that this document should lay out every possibility. However, the value should be interpretable by the runtime to understand how to run the model.</p>
+
+    <h4>Model Component Names</h4>
+    <p>This document standardizes the following model component names that several existing models use, along with examples where known. This list is not complete.</p>
+
+    <ul>
+      <li>clip (SD 1.5, SD2)</li>
+      <li>clip-l (SDXL, SD3)</li>
+      <li>clip-g (SDXL, SD3)</li>
+      <li>t5 (SD3, PixArt, Flux, many others)</li>
+      <li>unet (SD1.5, SD2, SDXL)</li>
+      <li>dit (SD3, PixArt, Flux, many others)</li>
+    </ul>
+
+    <h2>The Format: LoRA and other PEFT Distributions</h2>
+    <p>In general, PEFT distributions do not have the same issue of needing to distribute large components. However, that does not mean they are free of issues. There is an existing standard for distributing embeddings along with LoRAs in a single file. Thus, we reproduce that here and extend it past the existing SDXL use case.</p>
+
+    <p>The safetensors file contains an extra key for each bundled embedding. The key is prefixed with <b>bundle_emb</b>. From there, for legacy reasons, the name is slightly different depending on whether the underlying model is <b>Stable Diffusion 1.x/2</b> or <b>any other model</b>.</p>
+
+    <h3>Stable Diffusion 1.x/2</h3>
+
+    <p>Embeddings are given the key name <b>bundle_emb.{placeholder}.string_to_param.*</b>. The value of this key is the embedding vector for the text encoder.</p>
+    <p>The <b>{placeholder}</b> string represents the text that the user would use in their prompt to activate the embedding.</p>
+
+    <h3>All Other Models</h3>
+    <p>All other models take bundled embeddings with the following naming: <b>bundle_emb.{placeholder}.{text_encoder_name}</b>. The value of this key is the embedding vector for the named text encoder.</p>
+    <p>The <b>{placeholder}</b> string represents the text that the user would use in their prompt to activate the embedding, as in the SD 1.x/2 case. The <b>{text_encoder_name}</b> string represents which text encoder the embedding should apply to. See the <a href="#Model Component Names">Model Component Names</a> section above for a list of valid strings for this field.</p>
+    <p>It is allowed, and expected, that the same placeholder string can apply to multiple text encoder embedding vectors.</p>
+  </body>
+</html>
