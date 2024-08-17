@@ -23,10 +23,10 @@
         "model_components": {
           // This section varies based on the model type. This is an example of SDXL.
           "clip-l": "included",
-          "clip-g": "&lt;sha256 hash&gt;",
+          "clip-g": "sha256:&lt;sha256 hash&gt;",
           "unet": "included",
-          "vae": "&lt;sha256 hash&gt;",
-          "tokenizer": "&lt;sha256 hash&gt;"
+          "vae": "sha256:&lt;sha256 hash&gt;",
+          "tokenizer": "sha256:&lt;sha256 hash&gt;"
         },
         "prediction_type": "PREDICTION_TYPE_STRING"   // See below section.
         // If there are any additional model parameters that would be important
@@ -51,7 +51,8 @@
     </ul>
 
     <h4>model_components</h4>
-    <p>Models consist of many different components, depending on the architecture. Each component is given a canonical name, defined below in this document, and a field indicating its presence. If it is present in the file, the field will say <b>"included"</b>. If the field is not present, a hexidecimal sha256 hash representing the missing component is included. This sha256 hash <b>should</b> be equivalent to the sha256 of the file containing this component.</p>
+    <p>Models consist of many different components, depending on the architecture. Each component is given a canonical name, defined below in this document, and a field indicating its presence. If it is present in the file, the field will say <b>"included"</b>. If the field is not present, a hexidecimal sha256 hash representing the missing component is included, with the string "sha256:" prepended. This sha256 hash <i>should</i> be equivalent to the sha256 of the file containing this component.</p>
+    <p>There are a couple of corner cases that could appear with sha256-string includes. In the event that a sha256 pointer would point to a split file saved as multiple files, the pointer <i>must</i> point to the <b>first</b> (in lexicographic order) file in the split. Also, in the event that the the file contains keys beyond those requested for the model component, only the keys for the model component should be loaded. In this way, multiple components might point to the same sha256 source.</p>
 
     <h4>PREDICTION_TYPE_STRING</h4>
     <p>Some models, like Stable Diffusion models, might have variable prediction targets. If the file represents such a model, it should include this information. Possible values include, but are not limited to:</p>
