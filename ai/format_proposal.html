@@ -1,5 +1,9 @@
 <html>
   <head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script>hljs.highlightAll();</script>
     <title>Single-File Format Proposal</title>
   </head>
 
@@ -11,100 +15,128 @@
 
     <p>Thus, this document proposes a new standard for single-file model distribution going forward. None of the pieces here hold any technical challenge. The only difficulty is organizational: getting all inference frontends and trainers to agree on this format.</p>
 
-    <h2>Non-Goals</h2>
-    <p>This document does not address the standardization of key/layer naming. It also does not address how to actually load the individual pieces. It merely states if the pieces are <i>present</i> in the file, or <i>absent</i> with a pointer for how to find them. Providing a canonical naming scheme or on-disk format for the individual pieces is outside the scope of this standard.</p>
+    <p>To aid with future compatibility, this standard also specifies a <b>key naming format</b> that implementing models will use. This key naming format is very simple: for full models, it is the naming that came with the original model. For derived models like LoRAs, the names have _omi appended. Further details are in the individual derived format sections. For the purposes of compatibility, OMI provides a reference implementation in Python for converting models between known key names in the wild. This implementation can be found under the namespace "omi.key_conversion".</p>
 
     <h2>The Format: Full Models</h2>
     <p>A model will be distributed as a single .safetensors file. It will have, contained in the metadata section of the file, the following JSON key:</p>
-    <pre>
-      "model_information": {
-        "schema_version": "1",
-        "model_type": "MODEL_TYPE_STRING",  // See below section.
-        "model_components": {
-          // This section varies based on the model type. This is an example of SDXL.
-          "clip-l": {
-            // Every entry in this section will have a serialized object like
-            // this. Sadly, JSON doesn't have a schema to make this simple.
-            // Everything will include "source". The rest is based on the type
-            // of the entry. For example, text encoders can include a layer_skip
-            // value if it's different from the model default.
-            "source": "included",
-            "layer_skip": "1"
-          },
-          "clip-g": {
-            "source": "sha256:&lt;sha256 hash&gt;",
-            "layer_skip": "1"
-          },
-          "unet": {
-            "source": "included"
-          },
-          "vae": {
-            "source": "sha256:&lt;sha256 hash&gt;"
-          },
-          "tokenizer": {
-            "source": "sha256:&lt;sha256 hash&gt;"
-          }
-        },
-        "prediction_type": "PREDICTION_TYPE_STRING"   // See below section.
-        // If there are any additional model parameters that would be important
-        // to distribute because they are not standardized amongst the
-        // model_type, they should be included here.
+    <pre><code class="language-json">
+"omi_data": {
+  "schema_version": 1,
+  // A pipeline lays out the type of model this file contains, and how to find
+  // each of the pieces.
+  "pipeline": {
+    // The type comes from a pre-defined set of supported pipelines.
+    // See the list <a href="#pipelines">below</a>
+    "type": "SDXL",
+    "models": {
+      // Each key in this dictionary can be either an object (dict), or a string.
+      // An object means the model needs to be loaded from another file. A
+      // string means that the model is contained in this file, with details in
+      // the corresponding "models" object below.
+      "clip_l_tokenizer": {
+        "model_type": "CLIP_L/TOKENIZER",
+        // The file hash is the simplest possible way to locate a model piece.
+        // It is the raw hash of the entire file the piece is located in.
+        "file_hash": "sha256:0xdeadbeef",
+        // Optionally, other hashes can be specified. They are detailed in the
+        // <a href="#hashes">hashes</a> section below.
+        "hashes": {
+          "content_hash": "sha256:0x0000",
+          "similarity_hash": "sha256:0x0000"
+        }
+      },
+      "clip_l": "clip_l",
+      "unet": "sdxl_unet",
+      "clip_g_tokenizer": "...",
+      "clip_g": "...",
+      "vae": "..."
+    },
+    "info": {
+      // Optional, free-form object that can contain arbitrary data.
+    }
+  },
+  // A dictionary of models contained in this file. For example, the text
+  // encoder, tokenizer, or unet. The dictionary keys do not have any meaning;
+  // they are used only as references to the models in the "pipeline" dict above.
+  "models": {
+    "clip_l": {
+      // The type is a name from a pre-defined set of supported models. This
+      // information is intended to be informative for the user.
+      "type": "CLIP_L/TEXT_ENCODER",
+      // Specifies if a model was not saved with the OMI key layout. This
+      // document does not define any naming aside from "default".
+      "key_layout": "default",
+      "data": {
+        // A structured object containing additional information about the model.
+        // Each model_type has a specific set of keys that can be defined here.
+        // Every key has a default value. If a key is not defined here, the
+        // default value is assumed. See <a href="#modeldata">model-specific data</a>
+        // for additional information.
+      },
+      // Several hashes can be defined on the model, for ease of use in
+      // frontends for locating and displaying choices to the user.
+      // See <a href="#hashes">hash types</a> for the full list and what each one
+      // means.
+      "hashes": {
+        "content_hash": "sha256:0xdeadbeef",
+        "similarity_hash": "sha256:0xdeadbeef"
+      },
+      // An optional structure that can contain arbitrary data. Intentionally
+      // not defined.
+      "info": {}
+    },
+    "sdxl_unet": {
+      "type": "SDXL/UNET",
+      "hashes": {
+        "content_hash": "sha256:0x0000",
+        "similarity_hash": "sha256:0x0000",
+      },
+      "data": {
+        // See <a href="#modeldata">model-specific data.</a>
+        "prediction_type": "eps",
+        "clip_l_layer": 2,
+        "clip_g_layer": 2,
       }
-    </pre>
+    }
+  }
+}
+    </code></pre>
 
-    <h3>Key Definitions</h3>
+    <h2>Key Definitions</h2>
 
-    <h4>MODEL_TYPE_STRING</h4>
-    <p>A name that uniquely identifies the base type of the model. Current set aside names:</p>
+    <h3><a name="pipelines">Pipeline Names</a></h3>
+    <p>A name that uniquely identifies the base type of the model. Each name specifies which components are listed under the models section. Current name/component mappings:</p>
     <ul>
-      <li>SD1.5</li>
-      <li>SD2</li>
-      <li>SDXL</li>
-      <li>SD3</li>
-      <li>FLUX</li>
-      <li>PIXART ALPHA</li>
-      <li>PIXART SIGMA</li>
-      <li>HUNYUAN DIT</li>
+      <li>SD1.5: clip, tokenizer, unet, vae</li>
+      <li>SD2: clip, tokenizer, unet, vae</li>
+      <li>SDXL: clip_l, clip_l_tokenizer, clip_g, clip_g_tokenizer, unet, vae</li>
+      <li>SD3: clip_l, clip_l_tokenizer, clip_g, clip_g_tokenizer, t5, t5_tokenizer, transformer, vae</li>
+      <li>FLUX: clip, clip_tokenizer, t5, t5_tokenizer, transformer, vae</li>
+      <li>PIXART ALPHA: t5, t5_tokenizer, transformer, vae</li>
+      <li>PIXART SIGMA: t5, t5_tokenizer, transformer, vae</li>
+      <li>HUNYUAN DIT: t5, t5_tokenizer, transformer, vae</li>
     </ul>
 
-    <h4>model_components</h4>
-    <p>Models consist of many different components, depending on the architecture. Each component is given a canonical name, defined below in this document, and a source field indicating its presence. If it is present in the file, the field will say <b>"included"</b>. If the field is not present, a hexidecimal sha256 hash representing the missing component is included, with the string "sha256:" prepended. This sha256 hash <i>should</i> be equivalent to the sha256 of the file containing this component.</p>
-    <p>There are a couple of corner cases that could appear with sha256-string includes. In the event that a sha256 pointer would point to a split file saved as multiple files, the pointer <i>must</i> point to the <b>first</b> (in lexicographic order) file in the split. Also, in the event that the the file contains keys beyond those requested for the model component, only the keys for the model component should be loaded. In this way, multiple components might point to the same sha256 source.</p>
+    <h3><a name="hashes">Hashes</a></h3>
+    <p>Models in the pipeline section <b>must</b> include a file hash, which is a sha256 hash of the file in which the component can be found. This is the minimum necessary to allow a frontend to easily find a model piece that is not included directly in the file.</p>
+    <p>Optionally, additional hashes can be included to aid the frontend in the search for a possibly similar model. The names, and their algorithms, are described here. Reference code for calculating these is included in the OMI Python repository, under the name "omi.hashes".</p>
 
-    <h4>PREDICTION_TYPE_STRING</h4>
-    <p>Some models, like Stable Diffusion models, might have variable prediction targets. If the file represents such a model, it should include this information. Possible values include, but are not limited to:</p>
-    <ul>
-      <li>eps</li>
-      <li>v</li>
-      <li>x0</li>
-    </ul>
-    <p>This value is extremely model- and implementation-dependent, and it is not expected that this document should lay out every possibility. However, the value should be interpretable by the runtime to understand how to run the model.</p>
+    <h4>content_hash</h4>
+    <p>The content hash is defined by hashing the concatenation of the first 4 kilobytes of every tensor in the model. The ordering of the concatenation is done key name in alphabetical order.</p>
 
-    <h4>Model Component Names</h4>
-    <p>This document standardizes the following model component names that several existing models use, along with examples where known. This list is not complete.</p>
+    <h4>similarity_hash</h4>
+    <p>The similarity_hash is currently undefined.</p>
 
-    <ul>
-      <li>clip (SD 1.5, SD2)</li>
-      <li>clip-l (SDXL, SD3)</li>
-      <li>clip-g (SDXL, SD3)</li>
-      <li>t5 (SD3, PixArt, Flux, many others)</li>
-      <li>unet (SD1.5, SD2, SDXL)</li>
-      <li>dit (SD3, PixArt, Flux, many others)</li>
-    </ul>
+    <h3><a name="modeldata">Model-Specific Data</a></h3>
+    <p>Some models have data that define how they operate. The most obvious example is the clip text encoder skip layer, which is set to 2 by default in SDXL, but there are others. The following are defined by the standard.</p>
 
-    <h2>The Format: LoRA and other PEFT Distributions</h2>
-    <p>In general, PEFT distributions do not have the same issue of needing to distribute large components. However, that does not mean they are free of issues. There is an existing standard for distributing embeddings along with LoRAs in a single file. Thus, we reproduce that here and extend it past the existing SDXL use case.</p>
+    <h4>prediction_type</h4>
+    <p>This can be one of "eps", "v", or "x0". For most model types, it defaults to "eps", but for SD2 it defaults to "v". Any DDPM/DDIM model can have a prediction_type entry. At the time of this document that includes SD1.5, SD2, SDXL, PIXART_ALPHA, PIXART_SIGMA, and HUNYUAN_DIT.</p>
 
-    <p>The safetensors file contains an extra key for each bundled embedding. The key is prefixed with <b>bundle_emb</b>. From there, for legacy reasons, the name is slightly different depending on whether the underlying model is <b>Stable Diffusion 1.x/2</b> or <b>any other model</b>.</p>
+    <h4>clip_layer, clip_l_layer, clip_g_layer</h4>
+    <p>The layer at which the output should be taken from CLIPs. A number of "1" means the last layer, "2" the penultimate layer, and so on. If set to "0" or undefined, the model default will be used. This data element can be included in any model that includes a CLIP text encoder.</p>
 
-    <h3>Stable Diffusion 1.x/2</h3>
-
-    <p>Embeddings are given the key name <b>bundle_emb.{placeholder}.string_to_param.*</b>. The value of this key is the embedding vector for the text encoder.</p>
-    <p>The <b>{placeholder}</b> string represents the text that the user would use in their prompt to activate the embedding.</p>
-
-    <h3>All Other Models</h3>
-    <p>All other models take bundled embeddings with the following naming: <b>bundle_emb.{placeholder}.{text_encoder_name}</b>. The value of this key is the embedding vector for the named text encoder.</p>
-    <p>The <b>{placeholder}</b> string represents the text that the user would use in their prompt to activate the embedding, as in the SD 1.x/2 case. The <b>{text_encoder_name}</b> string represents which text encoder the embedding should apply to. See the <a href="#Model Component Names">Model Component Names</a> section above for a list of valid strings for this field.</p>
-    <p>It is allowed, and expected, that the same placeholder string can apply to multiple text encoder embedding vectors.</p>
+    <h2>TODO</h2>
+    <p>Not done yet: PEFT formats, bundled embeddings.
   </body>
 </html>
