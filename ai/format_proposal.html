@@ -65,14 +65,12 @@
       // The type is a name from a pre-defined set of supported models. This
       // information is intended to be informative for the user.
       "type": "CLIP_L/TEXT_ENCODER",
-      // Specifies if a model was not saved with the OMI key layout. This
-      // document does not define any naming aside from "default".
+      // Specifies the key layout of the model. Each model architecture has a
+      // single "default" key layout. Other key layouts are only added to support
+      // specific needs like quantization schemes that distribute a single
+      // parameter across multiple tensors.
+      // See <a href="#key_layout">below</a> for more details.
       "key_layout": "default",
-      // Tensors can be given a specific set of datatypes, to help the loader
-      // understand how to load the model. For quantized datatypes (width of 8
-      // bits or less), this is <b>required</b> so the loader knows how to work
-      // with the file. See <a href="#tensorformat">below</a> for more details.
-      "tensor_format": "bf16",
       "data": {
         // A structured object containing additional information about the model.
         // Each model_type has a specific set of keys that can be defined here.
@@ -145,15 +143,15 @@
     <h4>*_layer</h4>
     <p>Where * is the name of a text encoder. The layer at which the output should be taken from text encoder. A number of "0" means the first layer, "1" second layer, and so on. If undefined, the model default will be used. This data element can be included in any model that takes a text encoder output as input.</p>
 
-    <h3><a name="tensorformat">Tensor Formats</a></h3>
-    <p>The following strings are specified for the tensor_format field:</p>
+    <h3><a name="key_layout">Key Layouts</a></h3>
+    <p>The following strings are specified for the key_format field:</p>
     <ul>
-      <li>fp32</li>
-      <li>fp16</li>
-      <li>bf16</li>
-      <li>fp8_raw</li>
-      <li>bnb_int8</li>
-      <li>bnb_nf4</li>
+      <li>default: the default key layout for each model</li>
+      <li>
+        bnb_nf4: same as default, but the weight matrix of each linear layer is spread across 6 tensors.
+        A tensor with the original weight name and 5 additional tensors with the postfix ".absmax", ".nested_absmax", ".quant_map", ".nested_quant_map" and ".quant_state.bitsandbytes__nf4"
+      </li>
+      <li>bnb_int8: TBD</li>
     </ul>
 
     <p>This list will be added to if formats become used in the community. This list should not be seen as an endorsement of the quality of any of the quantization schemes in it.</p>
