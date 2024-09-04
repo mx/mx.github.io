@@ -23,13 +23,14 @@
 "omi_data": {
   "schema_version": 1,
   // A pipeline lays out the type of model this file contains, and how to find
-  // each of the pieces.
+  // each of the pieces. The pipeline is optional. If the file doesn't include
+  // a pipeline, the value of this key is null.
   "pipeline": {
     // The type comes from a pre-defined set of supported pipelines.
     // See the list <a href="#pipelines">below</a>
     "type": "SDXL",
     "models": {
-      // Each key in this dictionary can be either an object (dict), or a string.
+      // Each value in this dictionary can be either an object (dict), or a string.
       // An object means the model needs to be loaded from another file. A
       // string means that the model is contained in this file, with details in
       // the corresponding "models" object below.
@@ -57,7 +58,8 @@
   },
   // A dictionary of models contained in this file. For example, the text
   // encoder, tokenizer, or unet. The dictionary keys do not have any meaning;
-  // they are used only as references to the models in the "pipeline" dict above.
+  // they are used only as references to the models in the "pipeline" dict above
+  // and as a prefix for tensor keys in this file.
   "models": {
     "clip_l": {
       // The type is a name from a pre-defined set of supported models. This
@@ -112,14 +114,16 @@
     <h3><a name="pipelines">Pipeline Names</a></h3>
     <p>A name that uniquely identifies the base type of the model. Each name specifies which components are listed under the models section. Current name/component mappings:</p>
     <ul>
-      <li>SD1.5: clip, tokenizer, unet, vae</li>
-      <li>SD2: clip, tokenizer, unet, vae</li>
+      <li>SD1.5: clip_l, clip_l_tokenizer, unet, vae</li>
+      <li>SD2: clip_l_clip, clip_l_tokenizer, unet, vae</li>
       <li>SDXL: clip_l, clip_l_tokenizer, clip_g, clip_g_tokenizer, unet, vae</li>
-      <li>SD3: clip_l, clip_l_tokenizer, clip_g, clip_g_tokenizer, t5, t5_tokenizer, transformer, vae</li>
-      <li>FLUX: clip, clip_tokenizer, t5, t5_tokenizer, transformer, vae</li>
-      <li>PIXART ALPHA: t5, t5_tokenizer, transformer, vae</li>
-      <li>PIXART SIGMA: t5, t5_tokenizer, transformer, vae</li>
-      <li>HUNYUAN DIT: t5, t5_tokenizer, transformer, vae</li>
+      <li>SD3: clip_l, clip_l_tokenizer, clip_g, clip_g_tokenizer, t5_xxl, t5_xxl_tokenizer, transformer, vae</li>
+      <li>FLUX: clip, clip_l_tokenizer, t5_xxl, t5_xxl_tokenizer, transformer, vae</li>
+      <li>PIXART ALPHA: t5_xxl, t5_xxl_tokenizer, transformer, vae</li>
+      <li>PIXART SIGMA: t5_xxl, t5_xxl_tokenizer, transformer, vae</li>
+      <li>HUNYUAN DIT: t5_xxl, t5_xxl_tokenizer, transformer, vae</li>
+      <li>WUERSTCHEN 2: prior_clip_l, prior_clip_l_tokenizer, prior_prior, effnet_encoder, clip_l, clip_l_tokenizer, decoder, vqgan</li>
+      <li>STABLE CASCADE: prior_clip_l, prior_clip_l_tokenizer, prior_prior, effnet_encoder, clip_l, clip_l_tokenizer, decoder, vqgan</li>
     </ul>
 
     <h3><a name="hashes">Hashes</a></h3>
@@ -127,7 +131,7 @@
     <p>Optionally, additional hashes can be included to aid the frontend in the search for a possibly similar model. The names, and their algorithms, are described here. Reference code for calculating these is included in the OMI Python repository, under the name "omi.hashes".</p>
 
     <h4>content_hash</h4>
-    <p>The content hash is defined by hashing the concatenation of the first 4 kilobytes of every tensor in the model. The ordering of the concatenation is done key name in alphabetical order.</p>
+    <p>The content hash is defined by hashing the concatenation of the first 4 kilobytes (4096 byte) of every tensor in the model, or less if the tensor is smaller. The ordering of the concatenation is done key name in alphabetical order.</p>
 
     <h4>similarity_hash</h4>
     <p>The similarity_hash is currently undefined.</p>
@@ -138,8 +142,8 @@
     <h4>prediction_type</h4>
     <p>This can be one of "eps", "v", or "x0". For most model types, it defaults to "eps", but for SD2 it defaults to "v". Any DDPM/DDIM model can have a prediction_type entry. At the time of this document that includes SD1.5, SD2, SDXL, PIXART_ALPHA, PIXART_SIGMA, and HUNYUAN_DIT.</p>
 
-    <h4>clip_layer, clip_l_layer, clip_g_layer</h4>
-    <p>The layer at which the output should be taken from CLIPs. A number of "1" means the last layer, "2" the penultimate layer, and so on. If set to "0" or undefined, the model default will be used. This data element can be included in any model that includes a CLIP text encoder.</p>
+    <h4>*_layer</h4>
+    <p>Where * is the name of a text encoder. The layer at which the output should be taken from text encoder. A number of "0" means the first layer, "1" second layer, and so on. If undefined, the model default will be used. This data element can be included in any model that takes a text encoder output as input.</p>
 
     <h3><a name="tensorformat">Tensor Formats</a></h3>
     <p>The following strings are specified for the tensor_format field:</p>
