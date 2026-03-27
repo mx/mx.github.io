@@ -66,5 +66,14 @@
 
     <p>That problem is where the industry is rushing full-speed ahead, which is insane to me.</p>
 
+    <h2>How Did This Happen?</h2>
+
+    <p>It's worth interrogating why it came up with this result, which reveals a larger problem with LLM-based coding. Let's go back to the prompt. When I wrote it, I did it with an inherent <i>assumption</i>. That assumption was that <i>this was possible to do using the existing code</i>. This assumption is <i>wrong</i>. It is possible to implement the feature this way, by creating a new message-pathing path for this stream of information. But my assumption built in to that prompt is that it was possible in the current Surge.</p>
+
+    <p><b>LLMs do not challenge your assumptions!</b> If you provide instructions, it will try to fulfill those instructions (more accurately, it will produce a result that <i>looks</i> like it filled those instructions, known as an "answer-shaped response"). Part of that fulfillment means that any assumption you make, will be considered truth. That includes <i>unspoken</i> assumptions. Unspoken assumptions that are extremely important about the state of the world. More succinctly: bias.</p>
+
+    <p>In my experience, we're all pretty bad at explicitly communicating our biases. LLMs don't actually know anything about the world and they've been reinforcement-learned to be exceedingly helpful, so you'll get a result that confirms any bias you put into it. Of course the LLM could output code that does what I asked it to. After all, the prompt assumed it was possible!</p>
+
+    <p>That makes these tools super dangerous in the hands of junior developers, who don't have a good mental model about the state of the system they're asking the LLM to work on. That's a problem because all indications are that juniors absolutely love these tools. Now it's been a very long time since I was a junior developer, and I still got it wrong. Where does that leave us?</p>
   </body>
 </html>
