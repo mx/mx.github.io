@@ -1,0 +1,70 @@
+<html>
+  <head>
+    <title>A Little Knowledge is a Dangerous Thing</title>
+  </head>
+
+  <body>
+    <p>I'm a contributor to the <a href="https://surge-synthesizer.github.io/">Surge Synthesizer</a> open source project. For the uninitiated, it's an extremely comprehensive software synthesizer. If you don't know what <i>that</i> means: it's a complicated musical instrument. My most recent project there has been to implement a <i>convolution reverb</i> feature. That means, in extremely simple terms, that you can take a microphone and a balloon to a space like, say, a cathedral. Pop the balloon and record the resulting sound on a microphone. You can then do some math with this recording and any audio recording of your choosing, and it will sound like the audio was heard in that cathedral. Pretty cool!</p>
+
+    <p>Anyway, I recently finished up that project except for a nagging bug. We have this feature that lets you add some <i>delay</i> before the reverb kicks in. This can range from 0 to 1 seconds of delay. One of our developers discovered a bug where if you moved the delay from zero to nonzero and then back to zero, you could get a nasty distortion. This particular delay can be programmatically modified (known in synthesizer land as <i>modulation</i>), so this was something that could easily happen in practice.</p>
+
+    <p>Said developer kindly tracked down the bug and figured out that if you moved from non-zero delay back to zero, for some internal implementation reasons you suddenly needed a minimum delay time of six samples rather than zero samples. For CPU efficiency reasons though, it would be really nice to have that minimum be zero when possible. I decided on a simple algorithm: if the delay is ever under modulation, the minimum should be six seconds. Otherwise, we can let it be 0 seconds.</p>
+
+    <p>Now, I'm at the end of this project. I'm pretty tired of it. I decided to test if AI as of 3/27/2026 was up to the task. I opened up gemini-cli, loaded the file with the bug, and gave it the following prompt:</p>
+
+    <pre style="white-space: pre-wrap;">This code currently has a problem. When the pre-delay time goes from 0 to a non-zero value and then back to zero, it starts producing artifacts. The way to fix this is that, if the delay time is ever moved past zero, and that move is done as part of a modulation, it should treat the minimum possible delay value as 6 samples instead of 0 samples. It should only switch back to treating 0 as 0 if the delay value goes to 0 when it's not being modulated. Please make this change.</pre>
+
+    <p>After it churned and finished, I added the following:</p>
+
+    <pre style="white-space: pre-wrap;">Ensure it builds, the command to compile the ConvolutionEffect.cpp file can be found in build/compile_commands.json.</pre>
+
+    <p>I cleaned up the result a bit to make it more compact, and it was this added function:</p>
+
+    <pre>
+<span style="color: #204a87;">bool</span> <span style="color: #204a87; font-weight: bold;">ConvolutionEffect</span>::<span style="color: #a40000;">is_delay_modulated</span>()
+{
+    <span style="color: #346604;">const</span> <span style="color: #204a87;">int</span> <span style="color: #b35000;">id</span> = fxdata-&gt;p[convolution_delay].id;
+    <span style="color: #346604;">for</span> (<span style="color: #346604;">const</span> <span style="color: #346604;">auto</span> &amp;<span style="color: #b35000;">m</span> : storage-&gt;getPatch().<span style="font-weight: bold;">modulation_global</span>)
+    {
+        <span style="color: #346604;">if</span> (m.destination_id == id &amp;&amp; !m.muted)
+            <span style="color: #346604;">return</span> <span style="color: #204a87; font-weight: bold;">true</span>;
+    }
+
+    <span style="color: #346604;">return</span> <span style="color: #204a87; font-weight: bold;">false</span>;
+}
+    </pre>
+
+    <p>And the code that uses it:</p>
+    <pre>
+    <span style="color: #204a87;">float</span> <span style="color: #b35000;">delay_samples</span> = storage-&gt;samplerate * *pd_float[convolution_delay];
+    <span style="color: #346604;">if</span> (is_delay_modulated() || delay_samples &gt; 0)
+    {
+        <span style="color: #5f615c; font-style: italic;">// </span><span style="color: #5f615c; font-style: italic;">Thanks to how sinc interpolation works, there's a minimum delay of 6 samples. However, we
+</span>        <span style="color: #5f615c; font-style: italic;">// </span><span style="color: #5f615c; font-style: italic;">really want to use 0 samples if we can because it's a lot more efficient. So we set a min
+</span>        <span style="color: #5f615c; font-style: italic;">// </span><span style="color: #5f615c; font-style: italic;">of 6 if modulation of the delay parameter is turned on, or if it's set to a non-zero
+</span>        <span style="color: #5f615c; font-style: italic;">// </span><span style="color: #5f615c; font-style: italic;">value.
+</span>        delay_samples = <span style="color: #204a87; font-weight: bold;">std</span>::max(
+            delay_samples,
+            <span style="color: #346604;">static_cast</span>&lt;<span style="color: #204a87;">float</span>&gt;(<span style="color: #204a87; font-weight: bold;">sst</span>::<span style="color: #204a87; font-weight: bold;">basic_blocks</span>::<span style="color: #204a87; font-weight: bold;">tables</span>::<span style="color: #204a87; font-weight: bold;">SurgeSincTableProvider</span>::FIRipol_N) / 2);
+    }
+    delayTime_.newValue(delay_samples);
+    </pre>
+
+    <p>At first glance, this result is actually quite impressive. Surge is an extremely complicated project, the internals are not particularly documented, and the interactions can be spaghetti. The LLM managed to figure out what I meant by "modulation", discover where modulation was done, find the correct connecting data structure, connect it to the individual live parameter (by ID), and check for it. All good, right?</p>
+
+    <h2>Where Knowledge Becomes Danger</h2>
+
+    <p>This code is in fact extremely problematic, but if you didn't have any experience with Surge internals you wouldn't even question it. It would appear to work fine under testing, you'd commit it, and be done. But then somewhere along the line, somebody using convolution reverb would randomly crash in the middle of a live performance and Surge's reputation as a synthesizer would be ruined.</p>
+
+    <p>Synthesizers need to produce sound extremely quickly on a very tight schedule. Audio runs at a minimum of 44,100 samples per second and if it needs a sample to go out the sound card, that sample <b>must</b> be there to go. Otherwise you get an audible stutter. It is extremely unforgiving. To satisfy this requirement, synthesizers generally have a special "audio thread" that is responsible for doing this tight-deadline audio processing. This is separated from things like the GUI, which has much more relaxed guidelines.</p>
+
+    <p>The creation of modulation is done by the user in that GUI, separately from the audio thread. Now, most synthesizers communicate between this GUI and the audio thread by means of message passing through something like a ring buffer. Surge does not do this, so reads/writes of these intersections need to be carefully audited. This variable is simply <i>not safe</i> to be referenced like this by the audio thread! This access would need to be protected by a lock (which the audio thread cannot do, because then it might fail the realtime deadline).</p>
+
+    <p>The crash would be as follows: the synthesizer is running and spitting out sound. The performer removes an active modulation from the patch, likely through one of their on-stage controllers that pushes it into Surge. The convolution effect is in the middle of iterating over the list of all active modulations. Now there's one fewer, and it attempts to access the end of a list that just got shorter. Worst case scenario, it's an out-of-bound access, and it crashes. Best case scenario, it reads garbage data and the internal state no longer reflects reality, causing sound issues down the line. Either scenario, very bad!</p>
+
+    <p>The problem with the LLM here is that it doesn't understand this architecture. It doesn't know the difference between the GUI thread and the audio thread in Surge. It doesn't know that data property X is set in the GUI thread and is only allowed to be read in the audio thread under very specific and limited circumstances. Threading interactions are hard enough for humans to reason about, it's no surprise that an LLM whiffed them. Where it's a problem is when someone with less experience comes, does this exercise, gets some code that looks reasonable, and commits it.</p>
+
+    <p>That problem is where the industry is rushing full-speed ahead, which is insane to me.</p>
+
+  </body>
+</html>
